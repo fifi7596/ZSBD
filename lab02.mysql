@@ -1,0 +1,27 @@
+[Z tabeli employees wypisz w jednej kolumnie nazwisko i zarobki – nazwij kolumnê wynagrodzenie, dla osób z departamentów 20 i 50 z zarobkami pomiêdzy 2000 a 7000, uporz¹dkuj kolumny wed³ug nazwiska]
+
+CREATE VIEW cwiczenie_1 AS SELECT CONCAT(CONCAT(first_name,' ') , salary) AS wynagrodzenie FROM employees WHERE department_id IN (20, 50) AND salary BETWEEN 2000 AND 5000 ORDER BY last_name DESC;
+
+[Dla ka¿dego dzia³ów w których minimalna p³aca jest wy¿sza ni¿ 5000 wypisz sumê oraz œredni¹ zarobków zaokr¹glon¹ do ca³oœci nazwij odpowiednio kolumny]
+
+SELECT d.department_name, SUM(e.salary) as summary, round(avg(e.salary), 0) AS average FROM departments d JOIN employees e ON e.department_id = d.department_id GROUP BY d.department_name HAVING AVG(e.salary) > 5000;
+
+[Wypisaæ nazwisko, numer departamentu, nazwê departamentu, id pracy, dla osób z pracuj¹cych Toronto]
+
+SELECT last_name, d.department_id, department_name, job_id FROM departments d JOIN employees E ON e.department_id = d.department_id JOIN locations L ON l.location_id = d.location_id WHERE l.city = 'Toronto';
+
+[Dla pracowników o imieniu „Jennifer” wypisz imiê i nazwisko tego pracownika oraz osoby które z nim wspó³pracuj¹]
+
+SELECT e.first_name, last_name FROM employees e JOIN jobs j ON e.job_id = j.job_id WHERE e.first_name = 'Jennifer' OR e.job_id IN (SELECT job_id FROM employees WHERE first_name = 'Jennifer');
+
+[Wypisaæ wszystkie departamenty w których nie ma pracowników]
+
+SELECT * FROM departments WHERE department_id NOT IN (SELECT DISTINCT department_id FROM employees WHERE department_id IS NOT NULL);
+
+[Skopiuj tabelê Job_grades od u¿ytkownika HR]
+
+CREATE TABLE a_job_grades AS SELECT * FROM HR.job_grades; *
+
+[Wypisz imiê nazwisko oraz zarobki dla osób które zarabiaj¹ wiêcej ni¿ œrednia wszystkich, uporz¹dkuj malej¹co wed³ug zarobków]
+
+SELECT first_name, last_name, salary FROM employees WHERE salary > (SELECT AVG(salary) FROM employees) ORDER BY salary DESC;
