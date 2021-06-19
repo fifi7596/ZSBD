@@ -1,0 +1,222 @@
+[Stworzyæ blok anonimowy wypisuj¹cy zmienn¹ numer_max równ¹ maksymalnemu numerowi Departamentu i dodaj do tabeli departamenty – departament z numerem o 10 wiekszym, typ pola dla zmiennej z nazw¹ nowego departamentu (zainicjowaæ na EDUCATION) ustawiæ taki jak dla pola department_name w tabeli (%TYPE)]
+
+DECLARE
+	numer_max NUMBER(10):=0;
+    v_name departments.department_name%TYPE;
+BEGIN
+    SELECT MAX(department_id) INTO numer_max FROM departments;
+    v_name := 'EDUCATION';
+    numer_max:=numer_max+10;
+    INSERT INTO departments VALUES(numer_max, v_name, null, null);
+	dbms_output.put_line('maksymalny numer departamentu wynosi: '|| numer_max);
+END;
+
+[Do poprzedniego skryptu dodaj instrukcje zmieniaj¹c¹ location_id (3000) dla dodanego departamentu]
+
+DECLARE
+	numer_max NUMBER(10):=0;
+    v_name departments.department_name%TYPE;
+    v_location_id departments.location_id%TYPE;
+BEGIN
+    SELECT MAX(department_id) INTO numer_max FROM departments;
+    dbms_output.put_line('Maksymalny numer departamentu wynosi: ' || numer_max);
+    v_name := 'EDUCATION';
+    numer_max:=numer_max+10;
+    INSERT INTO departments VALUES(numer_max, v_name, null,null);
+	v_location_id:=3000;
+    UPDATE departments SET location_id = v_location_id WHERE department_id=numer_max;
+END;
+
+[Wyci¹gn¹æ informacje z tabeli countries do jednej zmiennej (%ROWTYPE) dla kraju o identyfikatorze ‘CA’. Wypisaæ nazwê i region_id na ekran]
+
+DECLARE
+    RESULT countries%ROWTYPE;
+BEGIN
+    SELECT *
+    INTO RESULT
+    FROM countries
+    WHERE country_id = 'CA';
+    dbms_output.put_line('nazwa = ' || RESULT.country_name || ' region_id = ' || RESULT.region_id);
+END;
+
+[Za pomoc¹ tabeli INDEX BY wyci¹gn¹æ informacje o nazwach departamentów i wypisaæ na ekran 10 (numery 10,20,…,100)]
+
+DECLARE
+    TYPE departments_names IS TABLE OF VARCHAR2(30) INDEX BY VARCHAR2 (5);
+    d_names departments_names;
+    d_name  departments.department_name%TYPE;
+BEGIN
+    FOR X IN 1..10
+        LOOP
+            SELECT department_name INTO d_name FROM departments WHERE department_id = X * 10;
+            d_names(X) := d_name;
+        END LOOP;
+
+    FOR X IN 1..10
+        LOOP
+            dbms_output.put_line(X * 10 || ' nazwa departamentu to: ' || TO_CHAR(d_names(X)));
+        END LOOP;
+END;
+
+[Zmieniæ skrypt z 5 tak aby pojawia³y siê wszystkie informacje na ekranie (wstawiæ %ROWTYPE do tabeli)]
+
+DECLARE
+    TYPE d_names IS TABLE OF departments%ROWTYPE INDEX BY VARCHAR2 (5);
+    d_names departments_names;
+    d_name  departments%ROWTYPE;
+BEGIN
+    FOR X IN 1..10
+        LOOP
+            SELECT * INTO d_name FROM departments WHERE department_id = X * 10;
+            d_names(X) := d_name;
+        END LOOP;
+
+    FOR X IN 1..10
+        LOOP
+            dbms_output.put_line(X * 10 || ' department ' ||
+                                 'nazwa: ' || TO_CHAR(d_names(X).d_name) || ' ' ||
+                                 'manager_id:' || TO_CHAR(d_names(X).manager_id) || ' ' ||
+                                 'location_id:' || TO_CHAR(d_names(X).location_id));
+        END LOOP;
+END;
+
+[Zadeklaruj kursor jako wynagrodzenie, nazwisko dla departamentu o numerze 50. Dla elementów kursora wypisaæ na ekran, jeœli wynagrodzenie jest wy¿sze ni¿ 3100: nazwisko osoby i tekst ‘nie dawaæ podwy¿ki’ w przeciwnym przypadku: nazwisko + ‘daæ podwy¿kê’]
+
+DECLARE
+	v_wynagrodzenie_rec employees%ROWTYPE;
+    CURSOR wynagrodzenie IS SELECT * FROM employees WHERE department_id='50';
+    v_salary employees.salary%TYPE;
+    v_department_id employees.department_id%TYPE;
+BEGIN
+    OPEN wynagrodzenie;
+    LOOP
+        FETCH wynagrodzenie INTO v_wynagrodzenie_rec;
+        v_salary:= v_wynagrodzenie_rec.salary;
+        v_department_id:= v_wynagrodzenie_rec.department_id;
+        IF v_department_id IS NOT NULL THEN
+            IF v_salary > 3100 THEN
+                dbms_output.put_line(v_wynagrodzenie_rec.last_name ||', brak podwyzki');
+            ELSE
+                dbms_output.put_line(v_wynagrodzenie_rec.last_name ||', podwyzka');
+            END IF;
+        END IF;
+    END LOOP;
+    close wynagrodzenie;
+END;
+
+[Zadeklarowaæ kursor zwracaj¹cy zarobki imiê i nazwisko pracownika z parametrami, gdzie pierwsze dwa parametry okreœlaj¹ wide³ki zarobków a trzeci czêœæ imienia pracownika. Wypisaæ na ekran pracowników:
+a. z wide³kami 1000- 5000 z czêœci¹ imienia a (mo¿e byæ równie¿ A)
+b. z wide³kami 5000-20000 z czêœci¹ imienia u (mo¿e byæ równie¿ U)]
+
+DECLARE
+    CURSOR c_employee(min_salary NUMBER, max_salary NUMBER, name VARCHAR2) 
+    IS SELECT first_name, last_name, salary FROM employees
+    WHERE (salary BETWEEN min_salary AND max_salary) AND lower(first_name) LIKE lower(name);
+BEGIN
+    dbms_output.put_line('z wide³kami 1000- 5000 z czêœci¹ imienia a lub A');
+    FOR i in c_employee(1000, 5000, '%a%')
+        LOOP
+            dbms_output.put_line(i.first_name ||' '|| i.last_name ||' '|| i.salary);
+        END LOOP;
+    dbms_output.put_line('z wide³kami 5000-20000 z czêœci¹ imienia u lub U');
+    FOR i in c_employee(5000, 20000, '%u%')
+        LOOP
+            dbms_output.put_line(i.first_name ||' '|| i.last_name ||' '|| i.salary);
+        END LOOP;
+END;
+
+[Stwórz procedury:
+a. dodaj¹c¹ wiersz do tabeli Jobs – z dwoma parametrami wejœciowymi okreœlaj¹cymi Job_id, Job_title, przetestuj dzia³anie wrzuæ wyj¹tki – co najmniej when others]
+
+CREATE OR REPLACE PROCEDURE 9a(v_job_id VARCHAR2, v_job_title VARCHAR2)
+    IS
+BEGIN
+    INSERT INTO JOBS (job_id, job_title)
+    VALUES (v_job_id, v_job_title);
+
+EXCEPTION
+    WHEN OTHERS THEN
+        dbms_output.put_line('zle dane');
+        dbms_output.put_line(SQLCODE);
+        dbms_output.put_line(SQLERRM);
+END;
+
+BEGIN
+    9a(&id, &title);
+END;
+
+[b. modyfikuj¹c¹ title w  tabeli Jobs – z dwoma parametrami id dla którego ma byæ modyfikacja oraz now¹ wartoœæ dla Job_title – przetestowaæ dzia³anie, dodaæ swój wyj¹tek dla no Jobs updated – najpierw sprawdziæ numer b³êdu]
+
+CREATE OR REPLACE PROCEDURE 9b(v_job_id VARCHAR2, v_job_title VARCHAR2)
+    IS
+DECLARE
+    NO_JOBS_UPDATED EXCEPTION;
+    PRAGMA EXCEPTION_INIT (NO_JOBS_UPDATED, -2001);
+BEGIN
+    UPDATE JOBS SET JOB_TITLE = v_job_title WHERE JOB_ID = v_job_id;
+    IF SQL%ROWCOUNT = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'brak nowych danych');
+    END IF;
+EXCEPTION
+    WHEN NO_JOBS_UPDATED THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+    WHEN OTHERS THEN
+        dbms_output.put_line('zle dane');
+        dbms_output.put_line(SQLCODE);
+        dbms_output.put_line(SQLERRM);
+END;
+
+BEGIN
+    9b('id', 'tytul');
+END;
+
+[c. usuwaj¹c¹ wiersz z tabeli Jobs  o podanym Job_id– przetestowaæ dzia³anie, dodaj wyj¹tek dla no Jobs deleted]
+
+CREATE OR REPLACE PROCEDURE 9c(v_job_id VARCHAR2)
+    IS
+    NO_JOBS_DELETED EXCEPTION;
+    PRAGMA EXCEPTION_INIT (NO_JOBS_DELETED, -2001);
+BEGIN
+    DELETE FROM JOBS WHERE JOB_ID = v_job_id;
+    IF SQL%ROWCOUNT = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'nic nie usunieto');
+    END IF;
+EXCEPTION
+    WHEN NO_JOBS_DELETED THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+    WHEN OTHERS THEN
+        dbms_output.put_line('zle dane');
+        dbms_output.put_line(SQLCODE);
+        dbms_output.put_line(SQLERRM);
+END;
+
+BEGIN
+    9c('id');
+END;
+
+[d. Wyci¹gaj¹c¹ zarobki i nazwisko (parametry zwracane przez procedurê) z tabeli employees dla pracownika o przekazanym jako parametr id]
+CREATE OR REPLACE PROCEDURE 9d(v_emp_id IN NUMBER, out_salary OUT NUMBER, out_last_name OUT VARCHAR2)
+    IS
+    TYPE ROW_TYPE IS RECORD
+                     (
+                         SALARY    NUMBER,
+                         LAST_NAME VARCHAR2(25)
+                     );
+    ROW_RESULT ROW_TYPE;
+    CUR        SYS_REFCURSOR;
+
+BEGIN
+    OPEN CUR FOR 'SELECT SALARY, LAST_NAME FROM EMPLOYEES WHERE EMPLOYEE_ID = ' || v_emp_id;
+    FETCH CUR INTO ROW_RESULT;
+    out_salary := ROW_RESULT.SALARY;
+    out_last_name := ROW_RESULT.LAST_NAME;
+END;
+/
+
+DECLARE
+    v_out_salary    NUMBER;
+    v_out_last_name VARCHAR2(30);
+BEGIN
+    9d(100, v_out_salary, v_out_last_name);
+    dbms_output.put_line('SALARY = ' || v_out_salary || ', LAST_NAME = ' || v_out_last_name);
+END;
