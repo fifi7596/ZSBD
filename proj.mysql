@@ -1,0 +1,208 @@
+-- Przygotowanie odpowiedniej struktury bazy danych na wybrany temat 
+
+CREATE TABLE brands (
+    brand_id NUMBER GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1) PRIMARY KEY,
+    name VARCHAR2(30) NOT NULL
+);
+
+CREATE TABLE cars (
+    car_id NUMBER GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1) PRIMARY KEY,
+    name VARCHAR2(30) NOT NULL,
+	engine_type VARCHAR2(15) NOT NULL,
+	engine_cap INT,
+	year INT, 
+	price INT,
+    brand_id NUMBER NOT NULL
+);
+
+CREATE TABLE clients (
+    client_id NUMBER GENERATED ALWAYS AS IDENTITY (START WITH 1 INCREMENT BY 1) PRIMARY KEY,
+	first_name VARCHAR2(30) NOT NULL,
+	last_name VARCHAR2(50) NOT NULL,
+	phone INT,
+	address VARCHAR2(200) NOT NULL,
+	contract_number INT
+);
+
+ALTER TABLE cars ADD FOREIGN KEY(brand_id) REFERENCES brands(brand_id) ON DELETE CASCADE;
+
+-- Ładowanie do bazy przykładowych danych  
+
+INSERT INTO brands (name)
+    VALUES ('Renault');
+INSERT INTO brands (name)
+    VALUES ('Daewoo');
+INSERT INTO brands (name)
+    VALUES ('Mercedes-Benz');
+INSERT INTO brands (name)
+    VALUES ('Toyota');
+
+INSERT INTO cars (name, engine_type, engine_cap, year, price, brand_id)
+    VALUES ('Clio', 'diesel', 1.4, 2000, 4000, 1);
+INSERT INTO cars (name, engine_type, engine_cap, year, price, brand_id)
+    VALUES ('Lanos', 'benzyna', 1.2, 1998, 1500, 2);
+INSERT INTO cars (name, engine_type, engine_cap, year, price, brand_id)
+    VALUES ('C-Klasa W203', 'diesel', 2.2, 2002, 7500, 3);
+INSERT INTO cars (name, engine_type, engine_cap, year, price, brand_id)
+    VALUES ('Corolla', 'benzyna', 1.8, 2001, 3000, 4);
+
+-- Procedury, funkcje, wyzwalacze obsługujące bazę 
+	-- a. Dodawanie, usuwanie, aktualizacja rekordów 
+	
+CREATE OR REPLACE PROCEDURE add_brand(b_name VARCHAR2)
+    IS
+    duplicate_name EXCEPTION;
+    PRAGMA EXCEPTION_INIT (duplicate_name, -2001);
+BEGIN
+    INSERT INTO brands (name)
+        VALUES(b_name);
+
+    EXCEPTION
+        WHEN duplicate_name THEN
+            DBMS_OUTPUT.PUT_LINE(SQLERRM);
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('niepoprawne dane wejsciowe');
+            DBMS_OUTPUT.PUT_LINE('kod bledu:' || SQLCODE);
+            DBMS_OUTPUT.PUT_LINE('komunikat:' || SQLERRM);
+END;
+
+
+CREATE OR REPLACE PROCEDURE remove_brand(b_brand_id NUMBER)
+IS
+BEGIN
+    DELETE FROM brands WHERE id = b_brand_id;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('niepoprawne dane wejsciowe');
+            DBMS_OUTPUT.PUT_LINE('kod bledu:' || SQLCODE);
+            DBMS_OUTPUT.PUT_LINE('komunikat:' || SQLERRM);
+END;
+
+CREATE OR REPLACE PROCEDURE remove_car(c_car_id NUMBER)
+IS
+BEGIN
+    DELETE FROM cars WHERE car_id = c_car_id;
+    COMMIT;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('niepoprawne dane wejsciowe');
+            DBMS_OUTPUT.PUT_LINE('kod bledu:' || SQLCODE);
+            DBMS_OUTPUT.PUT_LINE('komunikat:' || SQLERRM);
+END;
+
+CREATE OR REPLACE PROCEDURE edit_brand_name(b_brand_id NUMBER, b_brand VARCHAR2)
+IS
+BEGIN
+    UPDATE cars SET name = b_brand where brand_id = b_brand_id;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('niepoprawne dane wejsciowe');
+            DBMS_OUTPUT.PUT_LINE('kod bledu:' || SQLCODE);
+            DBMS_OUTPUT.PUT_LINE('komunikat:' || SQLERRM);
+END;
+
+	-- b. Archiwizacja usuniętych danych  
+DROP TABLE brands_archive;
+DROP TABLE cars_archive;
+
+CREATE TABLE brands_archive (
+    brand_id NUMBER,
+    name VARCHAR2(30)
+);
+
+CREATE TABLE cars_archive (
+    car_id NUMBER,
+    name VARCHAR2(30),
+	engine_type VARCHAR2(15) NOT NULL,
+	engine_cap INT,
+	year INT, 
+	price INT,
+    brand_id NUMBER
+);
+
+CREATE OR REPLACE TRIGGER BrandsArch
+    BEFORE DELETE
+    ON brands
+    FOR EACH ROW
+BEGIN
+    INSERT INTO brands_archive (brand_id, name)
+    VALUES (:OLD.brand_id, :OLD.name);
+END;
+
+CREATE OR REPLACE TRIGGER CarsArch
+    BEFORE DELETE
+    ON cars
+    FOR EACH ROW
+BEGIN
+    INSERT INTO cars_archive (car_id, name, engine_type, engine_cap, year, price, brand_id)
+    VALUES (:OLD.car_id, :OLD.name, :OLD.engine_type, :OLD.engine_cap, :OLD.year, :OLD.price, :OLD.brand_id);
+END;
+
+	-- c. Logowanie informacji do tabeli
+	
+CREATE OR REPLACE TRIGGER brands_log
+    AFTER INSERT OR UPDATE OR DELETE
+    ON brands
+    FOR EACH ROW
+DECLARE
+    b_action VARCHAR2(20);
+BEGIN
+    IF INSERTING THEN
+        b_action := 'INSERT';
+    ELSIF UPDATING THEN
+        b_action := 'UPDATE';
+    ELSIF DELETING THEN
+        b_action := 'DELETE';
+    END IF;
+
+    INSERT INTO logs (operation_name, operation_date, table_name)
+        VALUES (b_action, SYSDATE, 'brands');
+END;
+
+
+CREATE OR REPLACE TRIGGER cars_log
+    AFTER INSERT OR UPDATE OR DELETE
+    ON cars
+    FOR EACH ROW
+DECLARE
+    b_action VARCHAR2(20);
+BEGIN
+    IF INSERTING THEN
+        b_action := 'INSERT' ;
+    ELSIF UPDATING THEN
+        b_action := 'UPDATE';
+    ELSIF DELETING THEN
+        b_action := 'DELETE';
+    END IF;
+
+    INSERT INTO logs (operation_name, operation_date, table_name)
+        VALUES (b_action, SYSDATE, 'cars');
+END;
+
+	-- f. Sprawdzanie poprawności dodawanych danych (np. funkcja sprawdzająca poprawność pesela)
+
+CREATE OR REPLACE FUNCTION is_brand_name_taken(b_brand VARCHAR2) RETURN NUMERIC
+IS
+    CountInDB NUMBER;
+BEGIN
+    SELECT COUNT(brand) INTO CountInDB FROM brands WHERE brand like b_brand;
+        IF CountInDB > 1 THEN
+        RETURN 1;
+    ELSE
+        RETURN 0;
+    END IF;
+END;
+
+CREATE OR REPLACE FUNCTION is_car_name_taken(c_name VARCHAR2) RETURN NUMERIC
+IS
+    CountInDB NUMBER;
+BEGIN
+    SELECT COUNT(name) INTO CountInDB FROM cars WHERE name like c_name;
+    IF CountInDB > 1 THEN
+        RETURN 1;
+    ELSE
+        RETURN 0;
+    END IF;
+END;
